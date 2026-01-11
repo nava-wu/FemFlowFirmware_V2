@@ -1,4 +1,3 @@
-/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
@@ -15,54 +14,43 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
+
 /* Includes ------------------------------------------------------------------*/
+
 #include "main.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
+#include <stdio.h>
 
 /* Private variables ---------------------------------------------------------*/
 
 RTC_HandleTypeDef hrtc;
-
 UART_HandleTypeDef huart1;
 
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
 /* Private function prototypes -----------------------------------------------*/
+
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_RTC_Init(void);
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
 
-/* USER CODE END 0 */
+// HX711 calibration values
+static const int32_t raw_zero = 69000;
+static const int32_t raw_5ml  = 71700;
+static const int32_t raw_10ml = 74100;
+static const int32_t raw_15ml = 77400;
+static const int32_t raw_20ml = 78400;
+
+// Average slope (counts per mL)
+static const float calibration_factor =
+(
+  (raw_5ml  - raw_zero) / 5.0f +
+  (raw_10ml - raw_5ml)  / 5.0f +
+  (raw_15ml - raw_10ml) / 5.0f +
+  (raw_20ml - raw_15ml) / 5.0f
+
+) / 4.0f;
 
 /**
   * @brief  The application entry point.
@@ -70,19 +58,10 @@ static void MX_RTC_Init(void);
   */
 int main(void)
 {
-
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
@@ -90,27 +69,28 @@ int main(void)
   /* Configure the peripherals common clocks */
   PeriphCommonClock_Config();
 
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_RTC_Init();
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+      int32_t raw_value = HX711_ReadRaw();
+  
+      float volume_ml = (raw_value - raw_zero) / calibration_factor;
+  
+      // Constrain 0–20 mL
+      if (volume_ml < 0.0f)  volume_ml = 0.0f;
+      if (volume_ml > 20.0f) volume_ml = 20.0f;
+  
+      char msg[64];
+      snprintf(msg, sizeof(msg), "%ld\r\n", raw_value);
+      UART_Print(msg);
+  
+      HAL_Delay(1);
   }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -180,9 +160,6 @@ void PeriphCommonClock_Config(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN Smps */
-
-  /* USER CODE END Smps */
 }
 
 /**
@@ -192,17 +169,7 @@ void PeriphCommonClock_Config(void)
   */
 static void MX_RTC_Init(void)
 {
-
-  /* USER CODE BEGIN RTC_Init 0 */
-
-  /* USER CODE END RTC_Init 0 */
-
-  /* USER CODE BEGIN RTC_Init 1 */
-
-  /* USER CODE END RTC_Init 1 */
-
-  /** Initialize RTC Only
-  */
+  /** Initialize RTC Only */
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
@@ -215,10 +182,6 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN RTC_Init 2 */
-
-  /* USER CODE END RTC_Init 2 */
-
 }
 
 /**
@@ -228,14 +191,6 @@ static void MX_RTC_Init(void)
   */
 static void MX_USART1_UART_Init(void)
 {
-
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
   huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
@@ -263,10 +218,6 @@ static void MX_USART1_UART_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART1_Init 2 */
-
-  /* USER CODE END USART1_Init 2 */
-
 }
 
 /**
@@ -277,8 +228,6 @@ static void MX_USART1_UART_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -316,14 +265,40 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(HX711_DIN_GPIO_Port, &GPIO_InitStruct);
-
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
 }
 
-/* USER CODE BEGIN 4 */
+int32_t HX711_ReadRaw(void)
+{
+    int32_t value = 0;
 
-/* USER CODE END 4 */
+    // Wait for HX711 ready (DOUT goes LOW)
+    while (HAL_GPIO_ReadPin(HX711_DIN_GPIO_Port, HX711_DIN_Pin) == GPIO_PIN_SET);
+
+    for (uint8_t i = 0; i < 24; i++)
+    {
+        HAL_GPIO_WritePin(HX711_CLK_GPIO_Port, HX711_CLK_Pin, GPIO_PIN_SET);
+        value = value << 1;
+        HAL_GPIO_WritePin(HX711_CLK_GPIO_Port, HX711_CLK_Pin, GPIO_PIN_RESET);
+
+        if (HAL_GPIO_ReadPin(HX711_DIN_GPIO_Port, HX711_DIN_Pin))
+            value++;
+    }
+
+    // Gain = 128 (1 extra clock pulse)
+    HAL_GPIO_WritePin(HX711_CLK_GPIO_Port, HX711_CLK_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(HX711_CLK_GPIO_Port, HX711_CLK_Pin, GPIO_PIN_RESET);
+
+    // Sign extend 24-bit value
+    if (value & 0x800000)
+        value |= 0xFF000000;
+
+    return value;
+}
+
+void UART_Print(char *msg)
+{
+    HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
@@ -331,13 +306,9 @@ static void MX_GPIO_Init(void)
   */
 void Error_Handler(void)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
-  while (1)
-  {
-  }
-  /* USER CODE END Error_Handler_Debug */
+  NVIC_SystemReset();
 }
 
 #ifdef  USE_FULL_ASSERT
